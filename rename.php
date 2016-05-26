@@ -1,4 +1,5 @@
 <?php
+//License GPL 3 --> @see LICENSE
 /** setup *************************************************************************************************************
 $GLOBALS['TM_RENAME_SETUP'] = array(
 	'system' => __DIR__,            //Path to wp-load.php
