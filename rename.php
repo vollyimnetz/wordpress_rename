@@ -1,7 +1,7 @@
 <?php
 /** setup *************************************************************************************************************
 $GLOBALS['TM_RENAME_SETUP'] = array(
-	'system' => __DIR__.'/s',       //Path to wp-load.php
+	'system' => __DIR__,            //Path to wp-load.php
 	'old' => 'http://my-old-url.de',//Attention: without post-slash
 	'new' => 'http://my-new-url.de',//Attention: without post-slash
 );
