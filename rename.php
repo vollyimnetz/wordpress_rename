@@ -284,6 +284,26 @@ class TmRename {
 				'table' => 'revslider_slides',
 				'col'   => 'params',
 				'type'	=> 'json'
+			),
+			array(
+				'description' => 'MailPoet body',
+				'table' => 'wysija_email',
+				'col'   => 'body',
+				'type'	=> ''
+			),
+			array(
+				'description' => 'MailPoet params',
+				'table' => 'wysija_email',
+				'col'   => 'params',
+				'type'	=> 'base64_serialized',
+				'uniqueID' => 'email_id'
+			),
+			array(
+				'description' => 'MailPoet wj_data',
+				'table' => 'wysija_email',
+				'col'   => 'wj_data',
+				'type'	=> 'base64_serialized',
+				'uniqueID' => 'email_id'
 			)
 		);
 		
@@ -296,6 +316,9 @@ class TmRename {
 					break;
 				case 'mixed_serialized':
 					$result[] = self::doUpdateMixedSerialized($GLOBALS['TM_RENAME_SETUP']['old'], $GLOBALS['TM_RENAME_SETUP']['new'], $job);
+					break;
+				case 'base64_serialized':
+					$result[] = self::doUpdateBase64Serialized($GLOBALS['TM_RENAME_SETUP']['old'], $GLOBALS['TM_RENAME_SETUP']['new'], $job);
 					break;
 				default:
 					$result[] = self::doStandardUpdateRename($GLOBALS['TM_RENAME_SETUP']['old'], $GLOBALS['TM_RENAME_SETUP']['new'], $job);
@@ -373,6 +396,55 @@ class TmRename {
 		}
 		return $report;
 	}
+
+	/**
+	 * Table-fields with base64 encoded serialized php objects
+	 * @param  [type] $old [description]
+	 * @param  [type] $new [description]
+	 * @param  [type] $job [description]
+	 * @return [type]      [description]
+	 */
+	private static function doUpdateBase64Serialized($old,$new,$job) {
+		global $wpdb,$table_prefix;
+		
+		$report = array();
+		$report['title'] = $job['description'];
+		
+		try {
+			if(empty($job['uniqueID'])) throw new Exception('uniqueID fehlt');
+			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new Exception('NO TABLE');
+			
+			$query = $wpdb->prepare('SELECT '.$job['uniqueID'].','.$job['col'].' FROM '.$table_prefix.$job['table'].' WHERE FROM_BASE64('.$job['col'].') LIKE %s', '%'.$old.'%');
+			$select = $wpdb->get_results($query, ARRAY_A);
+			
+			$report['query'] = $query;
+
+			foreach($select as $row) {
+				$data = $row[$job['col']];
+				$unserialized = unserialize(base64_decode($data));
+				
+				$data = $unserialized;
+				self::recursiveArrayReplace($old, $new, $data);
+				$data = base64_encode(serialize($data));
+				
+				$updateQuery = $wpdb->prepare( 'UPDATE '.$table_prefix.$job['table'].' SET '.$job['col'].' = %s WHERE '.$job['uniqueID'].' = %d', $data, $row[$job['uniqueID']]);
+				$_result = $wpdb->query($updateQuery);
+				
+				$report['result'][] = array(
+					'status' => 'success',
+					'content' => $job['col'].' - '. $job['uniqueID'].' -- '.$row[$job['uniqueID']]
+				);
+			}
+		} catch(Exception $e) {
+			$report['result'][] = array(
+				'status' => 'failed',
+				'content' => 'ERROR: '.$e->getMessage()
+			);
+		}
+		
+		return $report;
+	}
+	
 	
 	private static function doUpdateMixedSerialized($old,$new,$job) {
 		global $wpdb,$table_prefix;
@@ -381,6 +453,7 @@ class TmRename {
 		$report['title'] = $job['description'];
 		
 		try {
+			if(empty($job['uniqueID'])) throw new Exception('uniqueID fehlt');
 			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new Exception('NO TABLE');
 			
 			$query = $wpdb->prepare('SELECT '.$job['uniqueID'].','.$job['col'].' FROM '.$table_prefix.$job['table'].' WHERE '.$job['col'].' LIKE %s', '%'.$old.'%');
