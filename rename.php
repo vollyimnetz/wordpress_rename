@@ -283,6 +283,18 @@ class TmRename {
 				'description' => 'Rename Rev-Slider slides',
 				'table' => 'revslider_slides',
 				'col'   => 'params',
+				'type'	=> 'json_revslider'
+			),
+			array(
+				'description' => 'Rename Rev-Slider slides',
+				'table' => 'revslider_slides',
+				'col'   => 'layers',
+				'type'	=> 'json_revslider'
+			),
+			array(
+				'description' => 'Rename Rev-Slider sliders',
+				'table' => 'revslider_sliders',
+				'col'   => 'params',
 				'type'	=> 'json'
 			),
 			array(
@@ -312,6 +324,11 @@ class TmRename {
 				case 'json':
 					$old = str_replace("/", "\/", $GLOBALS['TM_RENAME_SETUP']['old']);
 					$new = str_replace("/", "\/", $GLOBALS['TM_RENAME_SETUP']['new']);
+					$result[] = self::doStandardUpdateRename($old,$new,$job);
+					break;
+				case 'json_revslider': 
+					$old = str_replace("/", "\\\\\\/", $GLOBALS['TM_RENAME_SETUP']['old']);
+					$new = str_replace("/", "\\\\\\/", $GLOBALS['TM_RENAME_SETUP']['new']);
 					$result[] = self::doStandardUpdateRename($old,$new,$job);
 					break;
 				case 'mixed_serialized':
@@ -369,7 +386,6 @@ class TmRename {
 	
 	/******************************************************************************************************************/
 	
-	
 	private static function doStandardUpdateRename($old,$new,$job) {
 		global $wpdb,$table_prefix;
 		
@@ -396,6 +412,7 @@ class TmRename {
 		}
 		return $report;
 	}
+	
 
 	/**
 	 * Table-fields with base64 encoded serialized php objects
