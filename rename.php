@@ -46,8 +46,8 @@ if(empty($_GET['action'])) :
 					<p class="sqlQuery">
 						<code class="query" ng-if="i.query">{{i.query}}</code>
 					</p>
-					<p class="resultLine" ng-repeat="result in i.result" ng-class="result.status">
-						<span ng-class="result.status"></span> {{result.content}}
+					<p class="resultLine" ng-repeat="r in i.result" ng-class="r.status">
+						<span ng-class="r.status"></span> {{r.content}}
 					</p>
 					<p class="summary" ng-if="i.summary">
 						<span class="s_table" ng-if="i.summery.table">{{i.summary.table}}</span>
@@ -98,6 +98,7 @@ if(file_exists($TM_RENAME_SETUP['system'].'/wp-load.php')) {
 			TmRename::renameAdditionalTableColumns($result);
 			$result[] = TmRename::renameMastersliderSlides();
 			$result[] = TmRename::clearTransients();
+			$result[] = TmRename::clearElementorCache();
 			break;
 		
 		default:
@@ -316,7 +317,13 @@ class TmRename {
 				'col'   => 'wj_data',
 				'type'	=> 'base64_serialized',
 				'uniqueID' => 'email_id'
-			)
+			),
+			array(
+				'description' => 'Elementor postmeta data',
+				'table' => 'postmeta',
+				'key'   => '_elementor_data',//the meta_key
+				'type'	=> 'json_postmeta'
+			),//*/
 		);
 		
 		foreach($walker as $job) {
@@ -330,6 +337,11 @@ class TmRename {
 					$old = str_replace("/", "\\\\\\/", $GLOBALS['TM_RENAME_SETUP']['old']);
 					$new = str_replace("/", "\\\\\\/", $GLOBALS['TM_RENAME_SETUP']['new']);
 					$result[] = self::doStandardUpdateRename($old,$new,$job);
+					break;
+				case 'json_postmeta':
+					$old = str_replace("/", "\\\\\\/", $GLOBALS['TM_RENAME_SETUP']['old']);
+					$new = str_replace("/", "\\\\\\/", $GLOBALS['TM_RENAME_SETUP']['new']);
+					$result[] = self::doJsonPostmeta($old,$new,$job);
 					break;
 				case 'mixed_serialized':
 					$result[] = self::doUpdateMixedSerialized($GLOBALS['TM_RENAME_SETUP']['old'], $GLOBALS['TM_RENAME_SETUP']['new'], $job);
@@ -356,6 +368,24 @@ class TmRename {
 			'status' => 'success',
 			'content' => $clean
 		);
+		return $report;
+	}
+
+	public static function clearElementorCache() {
+		$report = array();
+		$report['title'] = 'clear Elementor cache';
+		try {
+			\Elementor\Plugin::$instance->posts_css_manager->clear_cache();
+			$report['result'][] = array(
+				'status' => 'success',
+				'content' => 'Elementor cache clear'
+			);
+		} catch(Exception $e) {
+			$report['result'][] = array(
+				'status' => 'failed',
+				'content' => 'ERROR Elementor not found'
+			);
+		}
 		return $report;
 	}
 	
@@ -385,6 +415,34 @@ class TmRename {
 	}
 	
 	/******************************************************************************************************************/
+
+	private static function doJsonPostmeta($old,$new,$job) {
+		global $wpdb,$table_prefix;
+		$job['table'] = 'postmeta';
+		
+		$report = array();
+		$report['title'] = $job['description'];
+		try {
+			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new Exception('NO TABLE');
+			
+			$query = 'UPDATE '.$table_prefix.$job['table'].' SET meta_value = replace(meta_value, "'.$old.'", "'.$new.'") where meta_key="'.$job['key'].'";';
+			$result = $wpdb->query($query);
+			if(is_wp_error($result)) throw new Exception('DB ERROR');
+			
+			$report['query'] = $query;
+			$report['summary'] = array(
+				'count' => $result,
+				'table' => $table_prefix.$job['table'],
+				'col' => $job['key']
+			);
+		} catch(Exception $e) {
+			$report['result'][] = array(
+				'status' => 'failed',
+				'content' => 'ERROR: '.$e->getMessage()
+			);
+		}
+		return $report;
+	}
 	
 	private static function doStandardUpdateRename($old,$new,$job) {
 		global $wpdb,$table_prefix;
@@ -563,11 +621,11 @@ class TmRename {
 		section.mainOutput { margin-top:3em; }
 		section.mainOutput h1 { font-size:1.3em; font-weight: bold; margin:2em 0 1em; border-top:1px solid #f0f0f0; padding-top:2em; }
 		section.mainOutput p span.success,
-		section.mainOutput p span.failure { background: #0a0; color:#fff; display: inline-block; padding:.4em 1em .3em; text-transform: uppercase; font-size:.9em; line-height: 1; }
-		section.mainOutput p span.failure { background: #a00; }
+		section.mainOutput p span.failed { background: #0a0; color:#fff; display: inline-block; padding:.4em 1em .3em; text-transform: uppercase; font-size:.9em; line-height: 1; }
+		section.mainOutput p span.failed { background: #a00; }
 		
 		section.mainOutput p span.success::after { content:"success"; display: inline-block; }
-		section.mainOutput p span.failure::after { content:"failure"; display: inline-block; }
+		section.mainOutput p span.failed::after { content:"failure"; display: inline-block; }
 		
 		section.mainOutput p.sqlQuery { font-size:1.2em; margin:.5em 0 1em; }
 		section.mainOutput p.resultLine { margin:0 0 2px; font-size:.9em; }
