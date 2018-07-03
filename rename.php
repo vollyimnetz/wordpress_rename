@@ -375,6 +375,9 @@ class TmRename {
 		$report = array();
 		$report['title'] = 'clear Elementor cache';
 		try {
+			if(!class_exists('\Elementor\Plugin')) {
+				throw new Exception("Error Elementor not present", 1);
+			}
 			\Elementor\Plugin::$instance->posts_css_manager->clear_cache();
 			$report['result'][] = array(
 				'status' => 'success',
