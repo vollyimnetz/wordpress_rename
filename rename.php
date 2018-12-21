@@ -99,6 +99,7 @@ if(file_exists($TM_RENAME_SETUP['system'].'/wp-load.php')) {
 			$result[] = TmRename::renameMastersliderSlides();
 			$result[] = TmRename::clearTransients();
 			$result[] = TmRename::clearElementorCache();
+			$result[] = TmRename::clearAvadaCache();
 			break;
 		
 		default:
@@ -387,6 +388,39 @@ class TmRename {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR Elementor not found'
+			);
+		}
+		return $report;
+	}
+
+	public static function clearAvadaCache() {
+		$report = array();
+		$report['title'] = 'clear Avada cache';
+		try {
+			if(!function_exists('avada_reset_all_caches')) {
+				throw new Exception("Error Avada not present", 1);
+			} else {
+				avada_reset_all_caches();
+				$report['result'][] = array(
+					'status' => 'success',
+					'content' => 'Avada cache cleared'
+				);
+			}
+			if(!class_exists('Fusion_Cache')) {
+				throw new Exception("Error Fusion_Cache not present", 1);
+			} else {
+				$fusion_cache = new Fusion_Cache();
+				$fusion_cache->reset_all_caches();
+
+				$report['result'][] = array(
+					'status' => 'success',
+					'content' => 'Fusion cache cleared'
+				);
+			}
+		} catch(Exception $e) {
+			$report['result'][] = array(
+				'status' => 'failed',
+				'content' => 'ERROR Avada not found'
 			);
 		}
 		return $report;
