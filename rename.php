@@ -98,6 +98,7 @@ if(file_exists($TM_RENAME_SETUP['system'].'/wp-load.php')) {
 			TmRename::renameAdditionalTableColumns($result);
 			$result[] = TmRename::renameMastersliderSlides();
 			$result[] = TmRename::clearTransients();
+			$result[] = TmRename::doElementorRename();
 			$result[] = TmRename::clearElementorCache();
 			$result[] = TmRename::clearAvadaCache();
 			break;
@@ -372,14 +373,36 @@ class TmRename {
 		return $report;
 	}
 
+	public static function doElementorRename() {
+		$report = array();
+		$report['title'] = 'Elementor rename';
+
+		try {
+			if(!class_exists('\Elementor\Utils')) {
+				throw new Exception("Error Elementor not present", 1);
+			}
+			$result = \Elementor\Utils::replace_urls( $GLOBALS['TM_RENAME_SETUP']['old'], $GLOBALS['TM_RENAME_SETUP']['new'] );
+			$report['result'][] = array(
+				'status' => 'success',
+				'content' => 'Elementor Utils used successfull: '.$result
+			);
+		} catch(Exception $e) {
+			$report['result'][] = array(
+				'status' => 'failed',
+				'content' => 'ERROR Elementor not found'
+			);
+		}
+		return $report;
+	}
+
 	public static function clearElementorCache() {
 		$report = array();
 		$report['title'] = 'clear Elementor cache';
 		try {
-			if(!class_exists('\Elementor\Plugin')) {
+			if(!class_exists('Elementor\Plugin')) {
 				throw new Exception("Error Elementor not present", 1);
 			}
-			\Elementor\Plugin::$instance->posts_css_manager->clear_cache();
+			$result = \Elementor\Plugin::$instance->files_manager->clear_cache();
 			$report['result'][] = array(
 				'status' => 'success',
 				'content' => 'Elementor cache clear'
@@ -393,7 +416,7 @@ class TmRename {
 		return $report;
 	}
 
-	public static function clearAvadaCache() {
+		public static function clearAvadaCache() {
 		$report = array();
 		$report['title'] = 'clear Avada cache';
 		try {
