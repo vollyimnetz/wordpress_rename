@@ -72,9 +72,21 @@ if(empty($_GET['action'])) :
 				that.doStart = function() {
 					that.output = [];
 					$http.get('rename.php?action=all')
-						.then(function(response) {
-							that.output = response.data;
-						});
+						.then(
+							function(response) {//success
+								that.output = response.data;
+							},
+							function(response) {//error
+							    console.error('response',response);
+							    var errorMessage = 'There was an unknown error, please visit the console.log or the php log';
+
+							    if(response.data.message) {
+							    	errorMessage = response.data.message;
+							    	errorMessage = errorMessage.replace(/(<([^>]+)>)/ig,"");//remove tags
+							    }
+							    that.output.push( { title:"Error", result: [ { status: 'failure', content: errorMessage } ] } );
+						  	}
+						);
 				}
 			});
 		</script>
@@ -681,11 +693,11 @@ class TmRename {
 		section.mainOutput { margin-top:3em; }
 		section.mainOutput h1 { font-size:1.3em; font-weight: bold; margin:2em 0 1em; border-top:1px solid #f0f0f0; padding-top:2em; }
 		section.mainOutput p span.success,
-		section.mainOutput p span.failed { background: #0a0; color:#fff; display: inline-block; padding:.4em 1em .3em; text-transform: uppercase; font-size:.9em; line-height: 1; }
-		section.mainOutput p span.failed { background: #a00; }
+		section.mainOutput p span.failure { background: #0a0; color:#fff; display: inline-block; padding:.4em 1em .3em; text-transform: uppercase; font-size:.9em; line-height: 1; }
+		section.mainOutput p span.failure { background: #a00; }
 		
 		section.mainOutput p span.success::after { content:"success"; display: inline-block; }
-		section.mainOutput p span.failed::after { content:"failure"; display: inline-block; }
+		section.mainOutput p span.failure::after { content:"failure"; display: inline-block; }
 		
 		section.mainOutput p.sqlQuery { font-size:1.2em; margin:.5em 0 1em; }
 		section.mainOutput p.resultLine { margin:0 0 2px; font-size:.9em; }
