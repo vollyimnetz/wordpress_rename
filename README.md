@@ -14,4 +14,11 @@ Prerequirements: All thinks are in place. You have setup your wp-config.php corr
 		'system' => __DIR__,            //Path to wp-load.php
 		'old' => 'http://my-old-url.de',//Attention: without post-slash
 		'new' => 'http://my-new-url.de',//Attention: without post-slash
+
+[//]: #		//optional parameters for Multisites
+[//]: #		'blog_id' => 1, //search for this blog_id in the blogs-table
+[//]: #		'blog_domain' => 'test-swh.swh-gruppe.net', //replace the domain value with the given domain
+
+		//optional infoMessage
+		'infoMessage' => 'Do not forget to ...'
 	);
