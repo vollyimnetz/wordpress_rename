@@ -1,4 +1,5 @@
 <?php
+namespace totalmedial;
 //@see https://github.com/vollyimnetz/wordpress_rename
 //License GPL 3 --> @see LICENSE
 /** setup *************************************************************************************************************
@@ -109,25 +110,42 @@ endif;
 
 
 /** routing ***********************************************************************************************************/
-$result = array();
+$result = [];
 if(file_exists($TM_RENAME_SETUP['system'].'/wp-load.php')) {
 	include_once $TM_RENAME_SETUP['system'].'/wp-load.php';
-	switch ($_GET['action']) {
-		case 'all':
-			$result[] = TmRename::renameMuBlogDomain();
-			$result[] = TmRename::renameOptions();
-			$result[] = TmRename::renamePostmeta();
-			TmRename::renameAdditionalTableColumns($result);
-			$result[] = TmRename::renameMastersliderSlides();
-			$result[] = TmRename::clearTransients();
-			$result[] = TmRename::doElementorRename();
-			$result[] = TmRename::clearElementorCache();
-			$result[] = TmRename::clearAvadaCache();
-			break;
+	TmRename::$debug[0]['result'][] = [ 'status' => 'success', 'content' => 'Wordpress system included successfully', ];
 
-		default:
-			TmRename::getTest($result);
-			break;
+	try {
+		switch ($_GET['action']) {
+			case 'all':
+				TmRename::addDebug('success', 'Starting all rename actions');
+				$result[] = TmRename::renameMuBlogDomain();
+				TmRename::addDebug('success', 'Renamed Multisite blog domain');
+				$result[] = TmRename::renameOptions();
+				TmRename::addDebug('success', 'Renamed options');
+				$result[] = TmRename::renamePostmeta();
+				TmRename::addDebug('success', 'Renamed postmeta');
+				TmRename::renameAdditionalTableColumns($result);
+				TmRename::addDebug('success', 'Renamed additional table columns');
+				$result[] = TmRename::renameMastersliderSlides();
+				TmRename::addDebug('success', 'Renamed Masterslider slides');
+				$result[] = TmRename::clearTransients();
+				TmRename::addDebug('success', 'Cleared transients');
+				$result[] = TmRename::doElementorRename();
+				TmRename::addDebug('success', 'Renamed Elementor elements');
+				$result[] = TmRename::clearElementorCache();
+				TmRename::addDebug('success', 'Cleared Elementor cache');
+				$result[] = TmRename::clearAvadaCache();
+				TmRename::addDebug('success', 'Cleared Avada cache');
+				break;
+
+			default:
+				TmRename::getTest($result);
+				break;
+		}
+	} catch(\Exception $e) {
+		TmRename::addDebug('failure', 'Error: '.$e->getMessage());
+		echo json_encode(TmRename::$debug);exit();
 	}
 } else {
 	$result[] = array('title'=>'Wordpress system can\'t be included - make sure the system-path in your "rename_config.php" leads to the wp-load.php file.');
@@ -149,6 +167,11 @@ exit();
  * array['summary']['text']
  */
 class TmRename {
+
+	public static $debug = [['title'=>'Debug']];
+	public static function addDebug($status, $content) {
+		self::$debug[0]['result'][] = [ 'status' => $status, 'content' => $content, ];
+	}
 
 	/**
 	 * will update the domain of a multisite blog if multisite is active and blog_id and blog_domain is set
@@ -174,7 +197,7 @@ class TmRename {
 			$query = "UPDATE ".$wpdb->base_prefix.$job_table." SET domain='".$GLOBALS['TM_RENAME_SETUP']['blog_domain']."' WHERE blog_id=".$GLOBALS['TM_RENAME_SETUP']['blog_id'];
 			$report['query'] = $query;
 			$result = $wpdb->query($query);
-			if(is_wp_error($result)) throw new Exception('Error updating blog domain');
+			if(is_wp_error($result)) throw new \Exception('Error updating blog domain');
 			$report['result'] = [];
 			$report['result'][] = [
 				'status' => 'success',
@@ -187,7 +210,7 @@ class TmRename {
 				'text' => 'Multisite blog domain updated'
 			];
 			return $report;
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = [
 				'status' => 'failed',
 				'content' => 'ERROR: '.$e->getMessage()
@@ -208,7 +231,7 @@ class TmRename {
 		$report = [];
 		$report['title'] = 'Rename Masterslider';
 		try {
-			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job_table."'")===0) throw new Exception('NO TABLE');
+			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job_table."'")===0) throw new \Exception('NO TABLE');
 
 			$query = "SELECT ID,title,params FROM ".$table_prefix.$job_table;
 			$report['query'] = $query;
@@ -239,7 +262,7 @@ class TmRename {
 					}
 				}
 			}
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR: '.$e->getMessage()
@@ -249,7 +272,7 @@ class TmRename {
 	}
 
 	public static function renameOptions() {
-		global $wpdb,$table_prefix;
+		global $wpdb, $table_prefix;
 		$report = [];
 		$report['title'] = 'rename options';
 
@@ -257,8 +280,20 @@ class TmRename {
 		$report['query'] = $query;
 		$options = $wpdb->get_results($query);
 
+		$skip = [];
+		//$skip = ['elementor_log'];//this seems to be a problem sometimes -> 500
+
+
 		foreach($options as $line) {
 			$currentOption = get_option($line->option_name);
+			TmRename::addDebug('info', 'Processing option: '.$line->option_name);
+
+			if(in_array($line->option_name, $skip)) {
+				TmRename::addDebug('info', 'Skipped option: '.$line->option_name);
+				TmRename::addDebug('info', $line->option_value);
+				continue;
+			}
+
 			self::recursiveArrayReplace($GLOBALS['TM_RENAME_SETUP']['old'],$GLOBALS['TM_RENAME_SETUP']['new'],$currentOption);
 			$result = update_option($line->option_name, $currentOption);
 
@@ -274,6 +309,8 @@ class TmRename {
 				);
 			}
 		}
+		//throw new \Exception('Test Exception');
+
 		return $report;
 	}
 
@@ -446,14 +483,14 @@ class TmRename {
 
 		try {
 			if(!class_exists('\Elementor\Utils')) {
-				throw new Exception("Error Elementor not present", 1);
+				throw new \Exception("Error Elementor not present", 1);
 			}
 			$result = \Elementor\Utils::replace_urls( $GLOBALS['TM_RENAME_SETUP']['old'], $GLOBALS['TM_RENAME_SETUP']['new'] );
 			$report['result'][] = array(
 				'status' => 'success',
 				'content' => 'Elementor Utils used successfull: '.$result
 			);
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR Elementor not found'
@@ -467,14 +504,14 @@ class TmRename {
 		$report['title'] = 'clear Elementor cache';
 		try {
 			if(!class_exists('Elementor\Plugin')) {
-				throw new Exception("Error Elementor not present", 1);
+				throw new \Exception("Error Elementor not present", 1);
 			}
 			$result = \Elementor\Plugin::$instance->files_manager->clear_cache();
 			$report['result'][] = array(
 				'status' => 'success',
 				'content' => 'Elementor cache clear'
 			);
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR Elementor not found'
@@ -488,7 +525,7 @@ class TmRename {
 		$report['title'] = 'clear Avada cache';
 		try {
 			if(!function_exists('avada_reset_all_caches')) {
-				throw new Exception("Error Avada not present", 1);
+				throw new \Exception("Error Avada not present", 1);
 			} else {
 				avada_reset_all_caches();
 				$report['result'][] = array(
@@ -497,9 +534,9 @@ class TmRename {
 				);
 			}
 			if(!class_exists('Fusion_Cache')) {
-				throw new Exception("Error Fusion_Cache not present", 1);
+				throw new \Exception("Error Fusion_Cache not present", 1);
 			} else {
-				$fusion_cache = new Fusion_Cache();
+				$fusion_cache = new \Fusion_Cache();
 				$fusion_cache->reset_all_caches();
 
 				$report['result'][] = array(
@@ -507,7 +544,7 @@ class TmRename {
 					'content' => 'Fusion cache cleared'
 				);
 			}
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR Avada not found'
@@ -550,11 +587,11 @@ class TmRename {
 		$report = [];
 		$report['title'] = $job['description'];
 		try {
-			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new Exception('NO TABLE');
+			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new \Exception('NO TABLE');
 
 			$query = 'UPDATE '.$table_prefix.$job['table'].' SET meta_value = replace(meta_value, "'.$old.'", "'.$new.'") where meta_key="'.$job['key'].'";';
 			$result = $wpdb->query($query);
-			if(is_wp_error($result)) throw new Exception('DB ERROR');
+			if(is_wp_error($result)) throw new \Exception('DB ERROR');
 
 			$report['query'] = $query;
 			$report['summary'] = array(
@@ -562,7 +599,7 @@ class TmRename {
 				'table' => $table_prefix.$job['table'],
 				'col' => $job['key']
 			);
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR: '.$e->getMessage()
@@ -577,11 +614,11 @@ class TmRename {
 		$report = [];
 		$report['title'] = $job['description'];
 		try {
-			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new Exception('NO TABLE');
+			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new \Exception('NO TABLE');
 
 			$query = "UPDATE ".$table_prefix.$job['table']." SET ".$job['col']." = replace(".$job['col'].", '".$old."','".$new."');";
 			$result = $wpdb->query($query);
-			if(is_wp_error($result)) throw new Exception('DB ERROR');
+			if(is_wp_error($result)) throw new \Exception('DB ERROR');
 
 			$report['query'] = $query;
 			$report['summary'] = array(
@@ -589,7 +626,7 @@ class TmRename {
 				'table' => $table_prefix.$job['table'],
 				'col' => $job['col']
 			);
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR: '.$e->getMessage()
@@ -613,8 +650,8 @@ class TmRename {
 		$report['title'] = $job['description'];
 
 		try {
-			if(empty($job['uniqueID'])) throw new Exception('uniqueID fehlt');
-			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new Exception('NO TABLE');
+			if(empty($job['uniqueID'])) throw new \Exception('uniqueID fehlt');
+			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new \Exception('NO TABLE');
 
 			$query = $wpdb->prepare('SELECT '.$job['uniqueID'].','.$job['col'].' FROM '.$table_prefix.$job['table'].' WHERE FROM_BASE64('.$job['col'].') LIKE %s', '%'.$old.'%');
 			$select = $wpdb->get_results($query, ARRAY_A);
@@ -637,7 +674,7 @@ class TmRename {
 					'content' => $job['col'].' - '. $job['uniqueID'].' -- '.$row[$job['uniqueID']]
 				);
 			}
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR: '.$e->getMessage()
@@ -655,8 +692,8 @@ class TmRename {
 		$report['title'] = $job['description'];
 
 		try {
-			if(empty($job['uniqueID'])) throw new Exception('uniqueID fehlt');
-			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new Exception('NO TABLE');
+			if(empty($job['uniqueID'])) throw new \Exception('uniqueID fehlt');
+			if($wpdb->query("SHOW TABLES LIKE '".$table_prefix.$job['table']."'")===0) throw new \Exception('NO TABLE');
 
 			$query = $wpdb->prepare('SELECT '.$job['uniqueID'].','.$job['col'].' FROM '.$table_prefix.$job['table'].' WHERE '.$job['col'].' LIKE %s', '%'.$old.'%');
 			$select = $wpdb->get_results($query, ARRAY_A);
@@ -682,7 +719,7 @@ class TmRename {
 					'content' => $job['col'].' - '. $job['uniqueID'].' -- '.$row[$job['uniqueID']]
 				);
 			}
-		} catch(Exception $e) {
+		} catch(\Exception $e) {
 			$report['result'][] = array(
 				'status' => 'failed',
 				'content' => 'ERROR: '.$e->getMessage()
@@ -727,9 +764,11 @@ class TmRename {
 	}
 
 	private static function fixObject(&$object) {
-		if (!is_object ($object) && gettype ($object) == 'object')
-			return ($object = unserialize(serialize ($object)));
-		return $object;
+		try {
+			if (!is_object ($object) && gettype ($object) == 'object') return ($object = unserialize(serialize ($object)));
+		} catch (\Throwable $th) {
+			return $object;
+		}
 	}
 
 
@@ -759,11 +798,14 @@ class TmRename {
 		section.mainOutput { margin-top:3em; }
 		section.mainOutput h1 { font-size:1.3em; font-weight: bold; margin:2em 0 1em; border-top:1px solid #f0f0f0; padding-top:2em; }
 		section.mainOutput p span.success,
-		section.mainOutput p span.failure { background: #0a0; color:#fff; display: inline-block; padding:.4em 1em .3em; text-transform: uppercase; font-size:.9em; line-height: 1; }
+		section.mainOutput p span.failure,
+		section.mainOutput p span.info { background: #0a0; color:#fff; display: inline-block; padding:.4em 1em .3em; text-transform: uppercase; font-size:.9em; line-height: 1; }
 		section.mainOutput p span.failure { background: #a00; }
+		section.mainOutput p span.info { background: rgb(19, 126, 188); }
 
 		section.mainOutput p span.success::after { content:"success"; display: inline-block; }
 		section.mainOutput p span.failure::after { content:"failure"; display: inline-block; }
+		section.mainOutput p span.info::after { content:"info"; display: inline-block; }
 
 		section.mainOutput p.sqlQuery { font-size:1.2em; margin:.5em 0 1em; }
 		section.mainOutput p.resultLine { margin:0 0 2px; font-size:.9em; }
